@@ -1,11 +1,14 @@
 # simple-memorize-tool-demo
+
 帮助记忆长文本的工具，金鱼记忆模拟器，期末周应试用，目前不确定有效性，是实验性项目
+
 代码部分由claude完成，我只提供思路，预计将在未来提供基于浏览器缓存的历史记录以便重复练习
 
 ---
 
 # 使用方式
 1.下载index.html到本地浏览器打开
+
 2.复制https://ccautowriting2240.github.io/simple-memorize-tool-demo/到新页面打开
 
 ---
