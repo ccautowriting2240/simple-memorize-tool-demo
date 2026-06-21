@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>金鱼记忆模拟器</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #ece7da;
+    --card-bg: #fffdf8;
+    --card-border: #e6e0d2;
+    --text: #2a2a2e;
+    --text-dim: #8a8578;
+    --accent: #c9822a;
+    --accent-text: #a8631a;
+    --accent-soft: #c9822a33;
+    --input-bg: #f4f1ea;
+    --input-border: #d8d2c4;
+    --btn-text: #fffdf8;
+    --btn-disabled-bg: #ddd6c7;
+    --btn-disabled-text: #999;
+    --danger: #c0394d;
+    --warn: #c9a227;
+    --success: #3a9b6e;
+    --muted: #999;
+    --blank-border: #aaa;
+  }
+  html[data-theme="ink"] {
+    --bg: #1a1a1e;
+    --card-bg: #232328;
+    --card-border: #36363e;
+    --text: #e8e8ea;
+    --text-dim: #888890;
+    --accent: #f0a868;
+    --accent-text: #ffd29c;
+    --accent-soft: #f0a86855;
+    --input-bg: #18181c;
+    --input-border: #36363e;
+    --btn-text: #1a1a1e;
+    --btn-disabled-bg: #3a3a42;
+    --btn-disabled-text: #777;
+    --danger: #e0566a;
+    --warn: #d8c25a;
+    --success: #6fcf97;
+    --muted: #777;
+    --blank-border: #555;
+  }
+  html[data-theme="blue"] {
+    --bg: #e6eef5;
+    --card-bg: #fdfeff;
+    --card-border: #d3e0ec;
+    --text: #1f2c3a;
+    --text-dim: #7891a3;
+    --accent: #2f7bbf;
+    --accent-text: #1f5a8c;
+    --accent-soft: #2f7bbf33;
+    --input-bg: #eef4f9;
+    --input-border: #cfdfeb;
+    --btn-text: #ffffff;
+    --btn-disabled-bg: #d6e2ea;
+    --btn-disabled-text: #94a8b6;
+    --danger: #c0394d;
+    --warn: #c9a227;
+    --success: #2f9e6f;
+    --muted: #94a8b6;
+    --blank-border: #b7c9d6;
+  }
+  html[data-theme="green"] {
+    --bg: #e6efe3;
+    --card-bg: #fbfdf8;
+    --card-border: #d3e4cc;
+    --text: #233022;
+    --text-dim: #7c937a;
+    --accent: #4f8c46;
+    --accent-text: #386530;
+    --accent-soft: #4f8c4633;
+    --input-bg: #eef5ec;
+    --input-border: #d2e3cd;
+    --btn-text: #ffffff;
+    --btn-disabled-bg: #dbe6d7;
+    --btn-disabled-text: #97ab93;
+    --danger: #c0394d;
+    --warn: #c9a227;
+    --success: #3a9b6e;
+    --muted: #97ab93;
+    --blank-border: #bdd0b8;
+  }
+  html[data-theme="red"] {
+    --bg: #f5e8e6;
+    --card-bg: #fffaf9;
+    --card-border: #ecd2cd;
+    --text: #3a201d;
+    --text-dim: #a07c76;
+    --accent: #c0463a;
+    --accent-text: #8f2f26;
+    --accent-soft: #c0463a33;
+    --input-bg: #f7eceb;
+    --input-border: #ecd4d0;
+    --btn-text: #fffaf9;
+    --btn-disabled-bg: #ecd9d6;
+    --btn-disabled-text: #b39a96;
+    --danger: #8f2f26;
+    --warn: #c9a227;
+    --success: #3a9b6e;
+    --muted: #b39a96;
+    --blank-border: #d9bcb7;
+  }
+  html[data-theme="mono"] {
+    --bg: #e9e9e9;
+    --card-bg: #ffffff;
+    --card-border: #d6d6d6;
+    --text: #1a1a1a;
+    --text-dim: #8a8a8a;
+    --accent: #3a3a3a;
+    --accent-text: #111111;
+    --accent-soft: #3a3a3a22;
+    --input-bg: #f2f2f2;
+    --input-border: #d6d6d6;
+    --btn-text: #ffffff;
+    --btn-disabled-bg: #dddddd;
+    --btn-disabled-text: #999999;
+    --danger: #1a1a1a;
+    --warn: #555555;
+    --success: #1a1a1a;
+    --muted: #999999;
+    --blank-border: #c2c2c2;
+  }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+    margin: 0;
+    transition: background 0.25s, color 0.25s;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    border: 1px solid var(--card-border);
+    transition: background 0.25s, border-color 0.25s;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    color: var(--accent);
+  }
+  .sub {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+  textarea#srcInput {
+    width: 100%;
+    min-height: 110px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 15px;
+    padding: 12px;
+    resize: vertical;
+    line-height: 1.6;
+  }
+  .counter {
+    text-align: right;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .counter.over { color: var(--danger); }
+  button {
+    background: var(--accent);
+    color: var(--btn-text);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 14px;
+  }
+  button:disabled {
+    background: var(--btn-disabled-bg);
+    color: var(--btn-disabled-text);
+    cursor: not-allowed;
+  }
+  button.ghost {
+    background: transparent;
+    border: 1px solid var(--input-border);
+    color: var(--text-dim);
+    margin-left: 8px;
+  }
+  .hint {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 10px;
+    line-height: 1.6;
+  }
+  .markwrap {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 17px;
+    line-height: 2.1;
+    letter-spacing: 0.5px;
+    word-break: break-all;
+    margin-bottom: 10px;
+  }
+  .ch {
+    cursor: pointer;
+    padding: 1px 0;
+    border-radius: 3px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ch.key {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-weight: 700;
+  }
+  .floatbtn {
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    background: var(--text-dim);
+    color: var(--btn-text);
+    border: none;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    z-index: 50;
+    cursor: pointer;
+  }
+  .floatbtn.active {
+    background: var(--success);
+  }
+  .fishbtn {
+    position: fixed;
+    left: 16px;
+    top: 16px;
+    background: var(--accent);
+    color: var(--btn-text);
+    border: none;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    z-index: 50;
+    cursor: pointer;
+    margin-top: 0;
+  }
+  .theme-menu {
+    position: fixed;
+    left: 16px;
+    top: 60px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 51;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 130px;
+  }
+  .theme-menu.hidden { display: none; }
+  .theme-menu button {
+    margin: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 6px;
+  }
+  .theme-menu button:hover {
+    background: var(--input-bg);
+  }
+  .swatch-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .typebox {
+    position: relative;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 17px;
+    line-height: 2.1;
+    letter-spacing: 0.5px;
+    word-break: break-all;
+    min-height: 110px;
+  }
+  .typebox.idle {
+    border-color: var(--warn);
+    box-shadow: 0 0 0 2px var(--warn);
+  }
+  .render {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+    white-space: pre-wrap;
+  }
+  .render span.pending { color: var(--muted); }
+  .render span.ghostkey { color: var(--accent); font-weight: 700; }
+  .render span.ok { color: var(--text); }
+  .render span.bad { color: var(--danger); text-decoration: underline; }
+  .render span.blank { color: transparent; border-bottom: 1px dashed var(--blank-border); }
+  textarea.overlay-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--accent);
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 16px;
+    font-size: 17px;
+    line-height: 2.1;
+    letter-spacing: 0.5px;
+    font-family: inherit;
+    word-break: break-all;
+    white-space: pre-wrap;
+    z-index: 2;
+  }
+  .status {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+  }
+  .status.warn { color: var(--warn); }
+  .status.done { color: var(--success); }
+  .stage { display: none; }
+  .stage.active { display: block; }
+  .progress {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+  @media (max-width: 480px) {
+    body { padding: 20px 10px; }
+    .card { padding: 18px; border-radius: 12px; }
+    h1 { font-size: 17px; }
+    .markwrap, .typebox, .overlay-input { font-size: 16px; line-height: 1.9; }
+    .typebox { padding: 12px; }
+    .overlay-input { padding: 12px; }
+    button { padding: 11px 16px; width: 100%; margin-left: 0 !important; }
+    button.ghost { margin-top: 8px; }
+  }
+  .confetti-piece {
+    position: fixed;
+    top: -20px;
+    font-size: 20px;
+    pointer-events: none;
+    z-index: 999;
+    animation: confetti-fall 1.4s ease-in forwards;
+  }
+  @keyframes confetti-fall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(70vh) rotate(540deg); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>金鱼记忆模拟器</h1>
+  <div class="sub">输入 → 划重点 → 跟打默写 → 仅看重点补全</div>
+
+  <!-- 阶段一：输入原文 -->
+  <div class="stage active" id="stage1">
+    <div class="progress">第 1 步 / 共 3 步 · 输入原文</div>
+    <textarea id="srcInput" placeholder="在这里输入要背诵的内容……"></textarea>
+    <div class="counter" id="counter">0 字</div>
+    <div class="hint" style="margin-top:0;">内容多的话可以拖拽输入框右下角的小三角，把框拉高一点～</div>
+    <button id="toMarkBtn" disabled>下一步：划重点</button>
+  </div>
+
+  <!-- 阶段二：划重点 -->
+  <div class="stage" id="stage2">
+    <div class="progress">第 2 步 / 共 3 步 · 点击文字标记重点（重点会在最后一步保留提示）</div>
+    <div class="markwrap" id="markArea"></div>
+    <div class="hint">点字即可切换是否为重点，橙色高亮 = 重点。不点也可以，直接进入下一步。</div>
+    <button id="toRecall1Btn">开始第一次默写（全文跟打）</button>
+    <button class="ghost" id="backTo1Btn">返回修改原文</button>
+    <button class="floatbtn" id="markModeBtn">👀 滑动查看模式</button>
+  </div>
+
+  <!-- 阶段三：第一次默写（全文跟打，淡色原文打底） -->
+  <div class="stage" id="stage3">
+    <div class="progress">第 3 步 / 共 3 步（上）· 跟打默写全文（输入错误标红，5秒不动会提醒走神）</div>
+    <div class="typebox" id="typebox1">
+      <div class="render" id="render1"></div>
+      <textarea class="overlay-input" id="hiddenInput1" rows="3"></textarea>
+    </div>
+    <div class="status" id="status1">点击下方区域开始输入</div>
+    <button class="ghost" id="backTo2Btn">返回划重点</button>
+  </div>
+
+  <!-- 阶段四：第二次默写（只露重点，其余靠记忆补全） -->
+  <div class="stage" id="stage4">
+    <div class="progress">最后一步 · 仅显示重点，其余内容凭记忆补全</div>
+    <div class="typebox" id="typebox2">
+      <div class="render" id="render2"></div>
+      <textarea class="overlay-input" id="hiddenInput2" rows="3"></textarea>
+    </div>
+    <div class="status" id="status2">点击下方区域开始输入</div>
+    <button class="ghost" id="restartBtn">重新开始</button>
+  </div>
+</div>
+
+<script>
+let original = "";
+let keyFlags = []; // boolean[] 标记每个字符是否为重点
+
+// ---------- 阶段一 ----------
+const srcInput = document.getElementById('srcInput');
+const counter = document.getElementById('counter');
+const toMarkBtn = document.getElementById('toMarkBtn');
+
+srcInput.addEventListener('input', () => {
+  const len = srcInput.value.length;
+  counter.textContent = len + ' 字';
+  toMarkBtn.disabled = len === 0;
+});
+
+toMarkBtn.addEventListener('click', () => {
+  original = srcInput.value.trim();
+  if (!original) return;
+  keyFlags = new Array(original.length).fill(false);
+  renderMarkArea();
+  switchStage('stage2');
+});
+
+document.getElementById('backTo1Btn').addEventListener('click', () => switchStage('stage1'));
+
+// ---------- 阶段二：划重点 ----------
+const markArea = document.getElementById('markArea');
+
+function renderMarkArea() {
+  markArea.innerHTML = '';
+  [...original].forEach((c, i) => {
+    const span = document.createElement('span');
+    span.className = 'ch' + (keyFlags[i] ? ' key' : '');
+    span.textContent = c;
+    span.addEventListener('click', () => {
+      if (markMode) return; // 拖动模式下由拖动逻辑统一处理，点击不重复触发
+      keyFlags[i] = !keyFlags[i];
+      span.classList.toggle('key', keyFlags[i]);
+    });
+    markArea.appendChild(span);
+  });
+}
+
+document.getElementById('backTo2Btn').addEventListener('click', () => switchStage('stage2'));
+
+// ---------- 划重点模式：悬浮按钮切换 + 长按拖动连续选中 ----------
+let markMode = false;
+const markModeBtn = document.getElementById('markModeBtn');
+
+markModeBtn.addEventListener('click', () => {
+  markMode = !markMode;
+  markModeBtn.textContent = markMode ? '✍️ 划重点模式（开）' : '👀 滑动查看模式';
+  markModeBtn.classList.toggle('active', markMode);
+  markArea.style.touchAction = markMode ? 'none' : 'auto';
+});
+
+let dragging = false;
+let dragTargetState = false;
+let dragVisited = new Set();
+
+function applyToSpan(span, idx) {
+  if (dragVisited.has(idx)) return;
+  dragVisited.add(idx);
+  keyFlags[idx] = dragTargetState;
+  span.classList.toggle('key', dragTargetState);
+}
+
+markArea.addEventListener('pointerdown', (e) => {
+  if (!markMode) return;
+  const span = e.target.closest('.ch');
+  if (!span) return;
+  e.preventDefault();
+  dragging = true;
+  dragVisited = new Set();
+  const idx = [...markArea.children].indexOf(span);
+  dragTargetState = !keyFlags[idx];
+  applyToSpan(span, idx);
+});
+
+document.addEventListener('pointermove', (e) => {
+  if (!dragging || !markMode) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const span = el && el.closest && el.closest('.ch');
+  if (!span || !markArea.contains(span)) return;
+  const idx = [...markArea.children].indexOf(span);
+  applyToSpan(span, idx);
+});
+
+document.addEventListener('pointerup', () => {
+  dragging = false;
+});
+
+document.getElementById('toRecall1Btn').addEventListener('click', () => {
+  initRecall(1);
+  switchStage('stage3');
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  srcInput.value = '';
+  counter.textContent = '0 字';
+  toMarkBtn.disabled = true;
+  switchStage('stage1');
+});
+
+// ---------- 通用：阶段切换 ----------
+function switchStage(id) {
+  document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ---------- 阶段三 & 四：跟打默写逻辑 ----------
+// mode: 1 = 全文淡色提示, 2 = 仅重点提示，其余空白
+function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, onComplete) {
+  let typed = '';
+  let idleTimer = null;
+  let composing = false; // 是否正在输入法组合中（比如拼音上屏前）
+  const IDLE_MS = 5000;
+
+  function resetIdleTimer() {
+    boxEl.classList.remove('idle');
+    statusEl.classList.remove('warn');
+    if (typed.length < original.length) {
+      statusEl.textContent = '继续输入…… (' + typed.length + '/' + original.length + ')';
+    }
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      boxEl.classList.add('idle');
+      statusEl.classList.add('warn');
+      statusEl.textContent = '⚠️ 超过5秒没输入了，是不是走神啦？';
+    }, IDLE_MS);
+  }
+
+  function render() {
+    renderEl.innerHTML = '';
+    [...original].forEach((c, i) => {
+      const span = document.createElement('span');
+      if (i < typed.length) {
+        // 已输入部分：判断对错
+        span.textContent = typed[i];
+        span.className = (typed[i] === c) ? 'ok' : 'bad';
+      } else {
+        // 未输入部分
+        if (mode === 1) {
+          span.textContent = c;
+          span.className = 'pending';
+          span.style.opacity = '0.18';
+        } else {
+          if (keyFlags[i]) {
+            span.textContent = c;
+            span.className = 'ghostkey';
+          } else {
+            span.textContent = '＿';
+            span.className = 'blank';
+          }
+        }
+      }
+      renderEl.appendChild(span);
+    });
+  }
+
+  inputEl.addEventListener('compositionstart', () => {
+    composing = true;
+  });
+
+  inputEl.addEventListener('compositionend', () => {
+    composing = false;
+    // 组合结束（汉字已上屏），这时候再正式处理一次
+    handleInput();
+  });
+
+  inputEl.addEventListener('input', () => {
+    if (composing) return; // 拼音组合中，先不比对，等上屏再说
+    handleInput();
+  });
+
+  let renderScheduled = false;
+  function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      render();
+    });
+  }
+
+  function handleInput() {
+    let v = inputEl.value;
+    if (v.length > original.length) v = v.slice(0, original.length);
+    typed = v;
+    scheduleRender();
+    resetIdleTimer();
+    if (typed.length === original.length) {
+      clearTimeout(idleTimer);
+      boxEl.classList.remove('idle');
+      const allCorrect = typed === original;
+      statusEl.classList.remove('warn');
+      statusEl.classList.add('done');
+      statusEl.textContent = allCorrect ? '✅ 完成，全部正确！' : '✅ 已输完，红色为打错的字，可以重打或继续下一步';
+      onComplete && onComplete(allCorrect);
+    }
+  }
+
+  boxEl.addEventListener('click', () => inputEl.focus());
+
+  return {
+    start() {
+      typed = '';
+      inputEl.value = '';
+      statusEl.classList.remove('done', 'warn');
+      statusEl.textContent = '点击此处开始输入';
+      render();
+      inputEl.focus();
+      resetIdleTimer();
+    }
+  };
+}
+
+let recall1, recall2;
+
+function celebrate() {
+  const emojis = ['🐠', '🐟', '💧', '🫧', '✨', '🎉', '🌊'];
+  for (let i = 0; i < 12; i++) {
+    const piece = document.createElement('span');
+    piece.className = 'confetti-piece';
+    piece.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    piece.style.left = Math.random() * 100 + 'vw';
+    piece.style.animationDelay = (Math.random() * 0.3) + 's';
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 1800);
+  }
+}
+
+function initRecall(stageNum) {
+  if (stageNum === 1) {
+    if (!recall1) {
+      recall1 = makeRecallController(
+        1,
+        document.getElementById('render1'),
+        document.getElementById('hiddenInput1'),
+        document.getElementById('typebox1'),
+        document.getElementById('status1'),
+        (allCorrect) => {
+          // 全文跟打完成后，3秒后自动进入第二阶段（仅重点提示）
+          setTimeout(() => {
+            initRecall(2);
+            switchStage('stage4');
+          }, 1200);
+        }
+      );
+    }
+    recall1.start();
+  } else {
+    if (!recall2) {
+      recall2 = makeRecallController(
+        2,
+        document.getElementById('render2'),
+        document.getElementById('hiddenInput2'),
+        document.getElementById('typebox2'),
+        document.getElementById('status2'),
+        (allCorrect) => {
+          if (allCorrect) celebrate();
+        }
+      );
+    }
+    recall2.start();
+  }
+}
+</script>
+</body>
+</html>
