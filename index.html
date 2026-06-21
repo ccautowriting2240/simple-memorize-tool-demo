@@ -227,6 +227,18 @@
     color: var(--accent-text);
     font-weight: 700;
   }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .btn-row button {
+    margin-top: 0;
+    flex: 1;
+  }
+  @media (max-width: 480px) {
+    .btn-row { flex-direction: column; }
+  }
   .floatbtn {
     position: fixed;
     right: 16px;
@@ -243,7 +255,7 @@
     cursor: pointer;
   }
   .floatbtn.active {
-    background: var(--success);
+    background: #ff8c1a;
   }
   .fishbtn {
     position: fixed;
@@ -371,6 +383,8 @@
     .overlay-input { padding: 12px; }
     button { padding: 11px 16px; width: 100%; margin-left: 0 !important; }
     button.ghost { margin-top: 8px; }
+    .floatbtn { width: auto; padding: 10px 12px; }
+    .floatbtn .fb-label { display: none; }
   }
   .confetti-piece {
     position: fixed;
@@ -384,6 +398,53 @@
     0% { transform: translateY(0) rotate(0deg); opacity: 1; }
     100% { transform: translateY(70vh) rotate(540deg); opacity: 0; }
   }
+  .notice {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+  }
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 22px 0 4px;
+  }
+  .history-item {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .history-item:hover { border-color: var(--accent); }
+  .history-title {
+    color: var(--text);
+    font-size: 14px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .history-date {
+    color: var(--text-dim);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .history-empty {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 8px;
+  }
 </style>
 </head>
 <body>
@@ -391,12 +452,26 @@
   <h1>金鱼记忆模拟器</h1>
   <div class="sub">输入 → 划重点 → 跟打默写 → 仅看重点补全</div>
 
+  <!-- 阶段零：首页 -->
+  <div class="stage active" id="stage0">
+    <div class="notice">
+      本工具使用浏览器本地存储（localStorage）保存记录。<br>
+      建议使用：Chrome / Edge / Firefox<br>
+      不建议使用：QQ内置浏览器 / 微信内置浏览器
+    </div>
+    <button id="newPracticeBtn">新建练习</button>
+    <div class="section-title">最近练习</div>
+    <div id="historyList"></div>
+  </div>
+
   <!-- 阶段一：输入原文 -->
-  <div class="stage active" id="stage1">
+  <div class="stage" id="stage1">
     <div class="progress">第 1 步 / 共 3 步 · 输入原文</div>
     <textarea id="srcInput" placeholder="在这里输入要背诵的内容……"></textarea>
     <div class="counter" id="counter">0 字</div>
     <div class="hint" style="margin-top:0;">内容多的话可以拖拽输入框右下角的小三角，把框拉高一点～</div>
+    <div class="hint" style="margin-top:14px;">走神提醒时间（秒，1-30，留空则不提醒）：</div>
+    <input type="number" id="idleSecondsInput" min="1" max="30" placeholder="留空=不提醒" style="width:100%;background:var(--input-bg);border:1px solid var(--input-border);border-radius:10px;color:var(--text);font-size:15px;padding:10px 12px;">
     <button id="toMarkBtn" disabled>下一步：划重点</button>
   </div>
 
@@ -406,8 +481,8 @@
     <div class="markwrap" id="markArea"></div>
     <div class="hint">点字即可切换是否为重点，橙色高亮 = 重点。不点也可以，直接进入下一步。</div>
     <button id="toRecall1Btn">开始第一次默写（全文跟打）</button>
-    <button class="ghost" id="backTo1Btn">返回修改原文</button>
-    <button class="floatbtn" id="markModeBtn">👀 滑动查看模式</button>
+    <button class="ghost" id="backTo1Btn">返回上一步</button>
+    <button class="floatbtn" id="markModeBtn"><span class="fb-emoji">👀</span><span class="fb-label"> 滑动查看模式</span></button>
   </div>
 
   <!-- 阶段三：第一次默写（全文跟打，淡色原文打底） -->
@@ -419,6 +494,7 @@
     </div>
     <div class="status" id="status1">点击下方区域开始输入</div>
     <button class="ghost" id="backTo2Btn">返回划重点</button>
+    <button class="floatbtn" id="pauseBtn1"><span class="fb-emoji">⏸</span><span class="fb-label"> 5s</span></button>
   </div>
 
   <!-- 阶段四：第二次默写（只露重点，其余靠记忆补全） -->
@@ -429,7 +505,12 @@
       <textarea class="overlay-input" id="hiddenInput2" rows="3"></textarea>
     </div>
     <div class="status" id="status2">点击下方区域开始输入</div>
-    <button class="ghost" id="restartBtn">重新开始</button>
+    <button class="ghost" id="restartBtn">返回首页</button>
+    <div class="btn-row">
+      <button class="ghost" id="reMarkBtn">重新划重点</button>
+      <button id="reTypeBtn">重新默写</button>
+    </div>
+    <button class="floatbtn" id="pauseBtn2"><span class="fb-emoji">⏸</span><span class="fb-label"> 5s</span></button>
   </div>
 </div>
 
@@ -442,10 +523,59 @@ const srcInput = document.getElementById('srcInput');
 const counter = document.getElementById('counter');
 const toMarkBtn = document.getElementById('toMarkBtn');
 
+// ---------- 走神提醒秒数设置（localStorage 记住） ----------
+const IDLE_KEY = 'goldfish-idle-seconds';
+const idleSecondsInput = document.getElementById('idleSecondsInput');
+
+function loadIdleSeconds() {
+  try {
+    const raw = localStorage.getItem(IDLE_KEY);
+    if (raw === null || raw === '') return null;
+    const n = parseInt(raw, 10);
+    return isNaN(n) ? null : n;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveIdleSeconds(val) {
+  try {
+    localStorage.setItem(IDLE_KEY, val === null ? '' : String(val));
+  } catch (e) {
+    // 存储不可用时静默忽略
+  }
+}
+
+let idleSeconds = loadIdleSeconds();
+if (idleSeconds !== null) idleSecondsInput.value = idleSeconds;
+
+idleSecondsInput.addEventListener('input', () => {
+  const v = idleSecondsInput.value;
+  if (v === '') {
+    idleSeconds = null;
+  } else {
+    let n = parseInt(v, 10);
+    if (isNaN(n)) {
+      idleSeconds = null;
+    } else {
+      n = Math.max(1, Math.min(30, n));
+      idleSeconds = n;
+    }
+  }
+  saveIdleSeconds(idleSeconds);
+});
+
 srcInput.addEventListener('input', () => {
   const len = srcInput.value.length;
   counter.textContent = len + ' 字';
   toMarkBtn.disabled = len === 0;
+});
+
+document.getElementById('newPracticeBtn').addEventListener('click', () => {
+  srcInput.value = '';
+  counter.textContent = '0 字';
+  toMarkBtn.disabled = true;
+  switchStage('stage1');
 });
 
 toMarkBtn.addEventListener('click', () => {
@@ -481,10 +611,13 @@ document.getElementById('backTo2Btn').addEventListener('click', () => switchStag
 // ---------- 划重点模式：悬浮按钮切换 + 长按拖动连续选中 ----------
 let markMode = false;
 const markModeBtn = document.getElementById('markModeBtn');
+const markModeEmoji = markModeBtn.querySelector('.fb-emoji');
+const markModeLabel = markModeBtn.querySelector('.fb-label');
 
 markModeBtn.addEventListener('click', () => {
   markMode = !markMode;
-  markModeBtn.textContent = markMode ? '✍️ 划重点模式（开）' : '👀 滑动查看模式';
+  markModeEmoji.textContent = markMode ? '✍️' : '👀';
+  markModeLabel.textContent = markMode ? ' 划重点模式（开）' : ' 滑动查看模式';
   markModeBtn.classList.toggle('active', markMode);
   markArea.style.touchAction = markMode ? 'none' : 'auto';
 });
@@ -526,15 +659,24 @@ document.addEventListener('pointerup', () => {
 });
 
 document.getElementById('toRecall1Btn').addEventListener('click', () => {
+  saveHistoryRecord();
   initRecall(1);
   switchStage('stage3');
 });
 
 document.getElementById('restartBtn').addEventListener('click', () => {
-  srcInput.value = '';
-  counter.textContent = '0 字';
-  toMarkBtn.disabled = true;
-  switchStage('stage1');
+  renderHistory();
+  switchStage('stage0');
+});
+
+document.getElementById('reMarkBtn').addEventListener('click', () => {
+  renderMarkArea();
+  switchStage('stage2');
+});
+
+document.getElementById('reTypeBtn').addEventListener('click', () => {
+  initRecall(1);
+  switchStage('stage3');
 });
 
 // ---------- 通用：阶段切换 ----------
@@ -545,24 +687,53 @@ function switchStage(id) {
 
 // ---------- 阶段三 & 四：跟打默写逻辑 ----------
 // mode: 1 = 全文淡色提示, 2 = 仅重点提示，其余空白
-function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, onComplete) {
+function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, pauseBtnEl, onComplete) {
   let typed = '';
-  let idleTimer = null;
   let composing = false; // 是否正在输入法组合中（比如拼音上屏前）
-  const IDLE_MS = 5000;
+  let remaining = 0;
+  let countdownTimer = null;
+  let isPaused = false;
 
-  function resetIdleTimer() {
+  const pauseEmoji = pauseBtnEl ? pauseBtnEl.querySelector('.fb-emoji') : null;
+  const pauseLabel = pauseBtnEl ? pauseBtnEl.querySelector('.fb-label') : null;
+
+  function updatePauseBtn() {
+    if (!pauseBtnEl) return;
+    pauseEmoji.textContent = isPaused ? '▶️' : '⏸';
+    pauseLabel.textContent = isPaused ? ' 已暂停' : (' ' + remaining + 's');
+    pauseBtnEl.classList.toggle('active', isPaused);
+  }
+
+  function startCountdown() {
     boxEl.classList.remove('idle');
     statusEl.classList.remove('warn');
     if (typed.length < original.length) {
       statusEl.textContent = '继续输入…… (' + typed.length + '/' + original.length + ')';
     }
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      boxEl.classList.add('idle');
-      statusEl.classList.add('warn');
-      statusEl.textContent = '⚠️ 超过5秒没输入了，是不是走神啦？';
-    }, IDLE_MS);
+    clearInterval(countdownTimer);
+    if (idleSeconds === null) return; // 没设置秒数 = 关闭走神提醒
+    remaining = idleSeconds;
+    updatePauseBtn();
+    countdownTimer = setInterval(() => {
+      if (isPaused) return; // 暂停中，倒计时不递减
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(countdownTimer);
+        boxEl.classList.add('idle');
+        statusEl.classList.add('warn');
+        statusEl.textContent = '⚠️ 超过' + idleSeconds + '秒没输入了，是不是走神啦？';
+        updatePauseBtn();
+        return;
+      }
+      updatePauseBtn();
+    }, 1000);
+  }
+
+  if (pauseBtnEl) {
+    pauseBtnEl.addEventListener('click', () => {
+      isPaused = !isPaused;
+      updatePauseBtn();
+    });
   }
 
   function render() {
@@ -623,9 +794,9 @@ function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, onComple
     if (v.length > original.length) v = v.slice(0, original.length);
     typed = v;
     scheduleRender();
-    resetIdleTimer();
+    startCountdown();
     if (typed.length === original.length) {
-      clearTimeout(idleTimer);
+      clearInterval(countdownTimer);
       boxEl.classList.remove('idle');
       const allCorrect = typed === original;
       statusEl.classList.remove('warn');
@@ -641,11 +812,13 @@ function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, onComple
     start() {
       typed = '';
       inputEl.value = '';
+      isPaused = false;
       statusEl.classList.remove('done', 'warn');
       statusEl.textContent = '点击此处开始输入';
+      if (pauseBtnEl) pauseBtnEl.style.display = (idleSeconds === null) ? 'none' : '';
       render();
       inputEl.focus();
-      resetIdleTimer();
+      startCountdown();
     }
   };
 }
@@ -674,6 +847,7 @@ function initRecall(stageNum) {
         document.getElementById('hiddenInput1'),
         document.getElementById('typebox1'),
         document.getElementById('status1'),
+        document.getElementById('pauseBtn1'),
         (allCorrect) => {
           // 全文跟打完成后，3秒后自动进入第二阶段（仅重点提示）
           setTimeout(() => {
@@ -692,6 +866,7 @@ function initRecall(stageNum) {
         document.getElementById('hiddenInput2'),
         document.getElementById('typebox2'),
         document.getElementById('status2'),
+        document.getElementById('pauseBtn2'),
         (allCorrect) => {
           if (allCorrect) celebrate();
         }
@@ -700,6 +875,97 @@ function initRecall(stageNum) {
     recall2.start();
   }
 }
+
+// ---------- 历史记录（localStorage 本地缓存） ----------
+const STORAGE_KEY = "goldfish-history";
+const MAX_HISTORY = 50;
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    // 部分内置浏览器（如QQ/微信）可能限制本地存储，静默降级为空列表
+    return [];
+  }
+}
+
+function writeHistory(list) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    // 写入失败不影响主功能，静默忽略
+  }
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' +
+    String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function saveHistoryRecord() {
+  if (!original) return;
+  let list = loadHistory();
+  const existing = list.find(r => r.original === original);
+  if (existing) {
+    existing.title = original.slice(0, 20);
+    existing.keyFlags = keyFlags.slice();
+    existing.createdAt = Date.now();
+  } else {
+    list.unshift({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+      title: original.slice(0, 20),
+      original: original,
+      keyFlags: keyFlags.slice(),
+      createdAt: Date.now()
+    });
+  }
+  list.sort((a, b) => b.createdAt - a.createdAt);
+  if (list.length > MAX_HISTORY) {
+    list = list.slice(0, MAX_HISTORY);
+  }
+  writeHistory(list);
+}
+
+function renderHistory() {
+  const list = loadHistory().sort((a, b) => b.createdAt - a.createdAt);
+  const container = document.getElementById('historyList');
+  container.innerHTML = '';
+  if (list.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'history-empty';
+    empty.textContent = '这里还没有记录';
+    container.appendChild(empty);
+    return;
+  }
+  list.slice(0, MAX_HISTORY).forEach(record => {
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const titleEl = document.createElement('span');
+    titleEl.className = 'history-title';
+    titleEl.textContent = record.title || '(无标题)';
+
+    const dateEl = document.createElement('span');
+    dateEl.className = 'history-date';
+    dateEl.textContent = formatDate(record.createdAt);
+
+    item.appendChild(titleEl);
+    item.appendChild(dateEl);
+
+    item.addEventListener('click', () => {
+      original = record.original;
+      keyFlags = record.keyFlags.slice();
+      renderMarkArea();
+      switchStage('stage2');
+    });
+
+    container.appendChild(item);
+  });
+}
+
+renderHistory();
 </script>
 </body>
 </html>
