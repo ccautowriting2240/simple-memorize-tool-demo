@@ -9,7 +9,7 @@
 # 使用方式
 1.下载index.html到本地浏览器打开
 
-2.复制https://ccautowriting2240.github.io/simple-memorize-tool-demo/到新页面打开
+2.复制  https://ccautowriting2240.github.io/simple-memorize-tool-demo/  到新页面打开
 
 ---
 本项目采用 CC BY-NC-SA 4.0 协议发布。
