@@ -445,9 +445,53 @@
     font-size: 13px;
     margin-top: 8px;
   }
+  /* 框选拖拽高亮 */
+  .ch.drag-selecting {
+    background: var(--accent-soft);
+    outline: 1px dashed var(--accent);
+    border-radius: 2px;
+  }
+  /* 填空模式：显示的key部分 */
+  .render span.fillkey {
+    color: var(--accent-text);
+    font-weight: 700;
+  }
+  /* 填空模式：需要输入的空白 */
+  .render span.fillblank {
+    color: transparent;
+    border-bottom: 1px dashed var(--blank-border);
+  }
+  /* checkbox行 */
+  .fill-mode-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    font-size: 14px;
+    color: var(--text-dim);
+    user-select: none;
+    cursor: pointer;
+  }
+  .fill-mode-row input[type=checkbox] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  /* 选区框（pc端框选） */
+  #dragSelectBox {
+    position: fixed;
+    border: 1.5px dashed var(--accent);
+    background: var(--accent-soft);
+    pointer-events: none;
+    z-index: 200;
+    display: none;
+    border-radius: 3px;
+  }
 </style>
 </head>
 <body>
+<div id="dragSelectBox"></div>
 <div class="card">
   <h1>金鱼记忆模拟器</h1>
   <div class="sub">输入 → 划重点 → 跟打默写 → 仅看重点补全</div>
@@ -480,6 +524,10 @@
     <div class="progress">第 2 步 / 共 3 步 · 点击文字标记重点（重点会在最后一步保留提示）</div>
     <div class="markwrap" id="markArea"></div>
     <div class="hint">点字即可切换是否为重点，橙色高亮 = 重点。不点也可以，直接进入下一步。</div>
+    <div class="hint" id="dragHint" style="display:none;">💡 电脑端：开启划重点模式后，可以按住鼠标左键拖拽批量框选。</div>
+    <label class="fill-mode-row">
+      <input type="checkbox" id="fillModeCheck"> ✅ 填空模式（第二次默写时，重点文字直接显示，非重点部分才需要输入）
+    </label>
     <button id="toRecall1Btn">开始第一次默写（全文跟打）</button>
     <button class="ghost" id="backTo1Btn">返回上一步</button>
     <button class="floatbtn" id="markModeBtn"><span class="fb-emoji">👀</span><span class="fb-label"> 滑动查看模式</span></button>
@@ -499,7 +547,7 @@
 
   <!-- 阶段四：第二次默写（只露重点，其余靠记忆补全） -->
   <div class="stage" id="stage4">
-    <div class="progress">最后一步 · 仅显示重点，其余内容凭记忆补全</div>
+    <div class="progress" id="stage4Progress">最后一步 · 仅显示重点，其余内容凭记忆补全</div>
     <div class="typebox" id="typebox2">
       <div class="render" id="render2"></div>
       <textarea class="overlay-input" id="hiddenInput2" rows="3"></textarea>
@@ -594,11 +642,17 @@ const markArea = document.getElementById('markArea');
 function renderMarkArea() {
   markArea.innerHTML = '';
   [...original].forEach((c, i) => {
+    if (c === '\n') {
+      markArea.appendChild(document.createElement('br'));
+      return;
+    }
     const span = document.createElement('span');
     span.className = 'ch' + (keyFlags[i] ? ' key' : '');
     span.textContent = c;
+    span.dataset.idx = i;
     span.addEventListener('click', () => {
-      if (markMode) return; // 拖动模式下由拖动逻辑统一处理，点击不重复触发
+      if (markMode) return;
+      if (pcDragMoved) return; // 刚刚是拖拽，不触发单点
       keyFlags[i] = !keyFlags[i];
       span.classList.toggle('key', keyFlags[i]);
     });
@@ -608,11 +662,143 @@ function renderMarkArea() {
 
 document.getElementById('backTo2Btn').addEventListener('click', () => switchStage('stage2'));
 
-// ---------- 划重点模式：悬浮按钮切换 + 长按拖动连续选中 ----------
+// ---------- PC端框选逻辑 ----------
+const dragSelectBox = document.getElementById('dragSelectBox');
+const dragHint = document.getElementById('dragHint');
+let pcDragging = false;
+let pcDragStart = null; // {x, y}
+let pcDragCurrent = null;
+
+function isDesktop() {
+  return window.matchMedia('(pointer: fine)').matches;
+}
+
+function updateDragHint() {
+  dragHint.style.display = isDesktop() ? '' : 'none';
+}
+updateDragHint();
+window.addEventListener('resize', updateDragHint);
+
+function getSpanRects() {
+  return [...markArea.querySelectorAll('.ch')].map((span) => {
+    const r = span.getBoundingClientRect();
+    const i = parseInt(span.dataset.idx);
+    return { span, i, r };
+  });
+}
+
+function applyBoxSelect(x1, y1, x2, y2) {
+  const left = Math.min(x1, x2);
+  const right = Math.max(x1, x2);
+  const top = Math.min(y1, y2);
+  const bottom = Math.max(y1, y2);
+  const spans = getSpanRects();
+  spans.forEach(({ span, i, r }) => {
+    const cx = (r.left + r.right) / 2;
+    const cy = (r.top + r.bottom) / 2;
+    if (cx >= left && cx <= right && cy >= top && cy <= bottom) {
+      span.classList.add('drag-selecting');
+    } else {
+      span.classList.remove('drag-selecting');
+    }
+  });
+}
+
+function commitBoxSelect(x1, y1, x2, y2, targetState) {
+  const left = Math.min(x1, x2);
+  const right = Math.max(x1, x2);
+  const top = Math.min(y1, y2);
+  const bottom = Math.max(y1, y2);
+  const spans = getSpanRects();
+  spans.forEach(({ span, i, r }) => {
+    const cx = (r.left + r.right) / 2;
+    const cy = (r.top + r.bottom) / 2;
+    if (cx >= left && cx <= right && cy >= top && cy <= bottom) {
+      keyFlags[i] = targetState;
+      span.classList.toggle('key', targetState);
+    }
+    span.classList.remove('drag-selecting');
+  });
+}
+
+markArea.addEventListener('mousedown', (e) => {
+  if (!isDesktop()) return;
+  if (markMode) return; // 滑动查看模式下禁用
+  if (e.button !== 0) return;
+  const span = e.target.closest('.ch');
+  if (!span) return;
+
+  const idx = parseInt(span.dataset.idx);
+  pcDragTargetState = !keyFlags[idx];
+
+  pcDragging = true;
+  pcDragMoved = false;
+  pcDragStart = { x: e.clientX, y: e.clientY };
+  pcDragCurrent = { x: e.clientX, y: e.clientY };
+  // 不preventDefault，让click事件正常触发处理单点
+});
+
+let pcDragTargetState = true;
+let pcDragMoved = false;
+
+function updateBoxStyle() {
+  if (!pcDragStart || !pcDragCurrent) return;
+  const x1 = Math.min(pcDragStart.x, pcDragCurrent.x);
+  const y1 = Math.min(pcDragStart.y, pcDragCurrent.y);
+  const x2 = Math.max(pcDragStart.x, pcDragCurrent.x);
+  const y2 = Math.max(pcDragStart.y, pcDragCurrent.y);
+  dragSelectBox.style.left = x1 + 'px';
+  dragSelectBox.style.top = y1 + 'px';
+  dragSelectBox.style.width = (x2 - x1) + 'px';
+  dragSelectBox.style.height = (y2 - y1) + 'px';
+  applyBoxSelect(x1, y1, x2, y2);
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!pcDragging) return;
+  const dx = e.clientX - pcDragStart.x;
+  const dy = e.clientY - pcDragStart.y;
+  if (!pcDragMoved && Math.sqrt(dx*dx + dy*dy) > 4) {
+    pcDragMoved = true;
+    dragSelectBox.style.display = 'block';
+  }
+  if (!pcDragMoved) return;
+  pcDragCurrent = { x: e.clientX, y: e.clientY };
+  updateBoxStyle();
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (!pcDragging) return;
+  pcDragging = false;
+  dragSelectBox.style.display = 'none';
+  if (pcDragMoved && pcDragStart && pcDragCurrent) {
+    // 真的拖了：框选提交
+    commitBoxSelect(
+      pcDragStart.x, pcDragStart.y,
+      pcDragCurrent.x, pcDragCurrent.y,
+      pcDragTargetState
+    );
+  }
+  // 没移动的情况：click事件自己会处理，这里不管
+  markArea.querySelectorAll('.drag-selecting').forEach(s => s.classList.remove('drag-selecting'));
+  pcDragStart = null;
+  pcDragCurrent = null;
+  pcDragMoved = false;
+});
+
+
+// ---------- 划重点模式：悬浮按钮（移动端专用：切换轨迹拖选 / 滑动查看） ----------
 let markMode = false;
 const markModeBtn = document.getElementById('markModeBtn');
 const markModeEmoji = markModeBtn.querySelector('.fb-emoji');
 const markModeLabel = markModeBtn.querySelector('.fb-label');
+
+// 桌面端隐藏这个按钮，框选直接可用
+function updateMarkModeBtnVisibility() {
+  markModeBtn.style.display = isDesktop() ? 'none' : '';
+}
+updateMarkModeBtnVisibility();
+window.addEventListener('resize', updateMarkModeBtnVisibility);
 
 markModeBtn.addEventListener('click', () => {
   markMode = !markMode;
@@ -622,6 +808,7 @@ markModeBtn.addEventListener('click', () => {
   markArea.style.touchAction = markMode ? 'none' : 'auto';
 });
 
+// 移动端：轨迹拖选
 let dragging = false;
 let dragTargetState = false;
 let dragVisited = new Set();
@@ -634,23 +821,24 @@ function applyToSpan(span, idx) {
 }
 
 markArea.addEventListener('pointerdown', (e) => {
+  if (isDesktop()) return; // 桌面端走mousedown那套
   if (!markMode) return;
   const span = e.target.closest('.ch');
   if (!span) return;
   e.preventDefault();
   dragging = true;
   dragVisited = new Set();
-  const idx = [...markArea.children].indexOf(span);
+  const idx = parseInt(span.dataset.idx);
   dragTargetState = !keyFlags[idx];
   applyToSpan(span, idx);
 });
 
 document.addEventListener('pointermove', (e) => {
-  if (!dragging || !markMode) return;
+  if (!dragging || !markMode || isDesktop()) return;
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const span = el && el.closest && el.closest('.ch');
   if (!span || !markArea.contains(span)) return;
-  const idx = [...markArea.children].indexOf(span);
+  const idx = parseInt(span.dataset.idx);
   applyToSpan(span, idx);
 });
 
@@ -675,8 +863,9 @@ document.getElementById('reMarkBtn').addEventListener('click', () => {
 });
 
 document.getElementById('reTypeBtn').addEventListener('click', () => {
-  initRecall(1);
-  switchStage('stage3');
+  recall2 = null;
+  initRecall(2);
+  switchStage('stage4');
 });
 
 // ---------- 通用：阶段切换 ----------
@@ -686,13 +875,22 @@ function switchStage(id) {
 }
 
 // ---------- 阶段三 & 四：跟打默写逻辑 ----------
-// mode: 1 = 全文淡色提示, 2 = 仅重点提示，其余空白
+// mode: 1 = 全文淡色提示, 2 = 仅重点提示，其余空白, 3 = 填空模式（重点直接显示，非重点空白）
 function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, pauseBtnEl, onComplete) {
   let typed = '';
-  let composing = false; // 是否正在输入法组合中（比如拼音上屏前）
+  let composing = false;
   let remaining = 0;
   let countdownTimer = null;
   let isPaused = false;
+
+  // mode3：构建"需要输入的字符"索引列表（非key的字符）
+  // original中，keyFlags[i]=true的字符直接显示，false的字符需要输入
+  let fillTargets = []; // mode3用：存储需要输入的字符及其在original中的位置
+  if (mode === 3) {
+    fillTargets = [...original].map((c, i) => ({ c, i })).filter(({ i }) => !keyFlags[i]);
+  }
+  // fillTarget的"original"就是fillTargets.map(t=>t.c).join('')
+  const fillOriginal = mode === 3 ? fillTargets.map(t => t.c).join('') : original;
 
   const pauseEmoji = pauseBtnEl ? pauseBtnEl.querySelector('.fb-emoji') : null;
   const pauseLabel = pauseBtnEl ? pauseBtnEl.querySelector('.fb-label') : null;
@@ -707,15 +905,16 @@ function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, pauseBtn
   function startCountdown() {
     boxEl.classList.remove('idle');
     statusEl.classList.remove('warn');
-    if (typed.length < original.length) {
-      statusEl.textContent = '继续输入…… (' + typed.length + '/' + original.length + ')';
+    const totalLen = mode === 3 ? fillTargets.length : original.length;
+    if (typed.length < totalLen) {
+      statusEl.textContent = '继续输入…… (' + typed.length + '/' + totalLen + ')';
     }
     clearInterval(countdownTimer);
-    if (idleSeconds === null) return; // 没设置秒数 = 关闭走神提醒
+    if (idleSeconds === null) return;
     remaining = idleSeconds;
     updatePauseBtn();
     countdownTimer = setInterval(() => {
-      if (isPaused) return; // 暂停中，倒计时不递减
+      if (isPaused) return;
       remaining--;
       if (remaining <= 0) {
         clearInterval(countdownTimer);
@@ -738,30 +937,52 @@ function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, pauseBtn
 
   function render() {
     renderEl.innerHTML = '';
-    [...original].forEach((c, i) => {
-      const span = document.createElement('span');
-      if (i < typed.length) {
-        // 已输入部分：判断对错
-        span.textContent = typed[i];
-        span.className = (typed[i] === c) ? 'ok' : 'bad';
-      } else {
-        // 未输入部分
-        if (mode === 1) {
+    if (mode === 3) {
+      // 填空模式：遍历original，key字符直接显示，非key字符按typed进度显示
+      let fillIdx = 0; // 当前typed的指针（只走非key字符）
+      [...original].forEach((c, i) => {
+        const span = document.createElement('span');
+        if (keyFlags[i]) {
+          // key字符：直接显示，用fillkey样式
           span.textContent = c;
-          span.className = 'pending';
-          span.style.opacity = '0.18';
+          span.className = 'fillkey';
         } else {
-          if (keyFlags[i]) {
-            span.textContent = c;
-            span.className = 'ghostkey';
+          // 非key字符：需要输入
+          if (fillIdx < typed.length) {
+            span.textContent = typed[fillIdx];
+            span.className = (typed[fillIdx] === c) ? 'ok' : 'bad';
           } else {
             span.textContent = '＿';
-            span.className = 'blank';
+            span.className = 'fillblank';
+          }
+          fillIdx++;
+        }
+        renderEl.appendChild(span);
+      });
+    } else {
+      [...original].forEach((c, i) => {
+        const span = document.createElement('span');
+        if (i < typed.length) {
+          span.textContent = typed[i];
+          span.className = (typed[i] === c) ? 'ok' : 'bad';
+        } else {
+          if (mode === 1) {
+            span.textContent = c;
+            span.className = 'pending';
+            span.style.opacity = '0.18';
+          } else {
+            if (keyFlags[i]) {
+              span.textContent = c;
+              span.className = 'ghostkey';
+            } else {
+              span.textContent = '＿';
+              span.className = 'blank';
+            }
           }
         }
-      }
-      renderEl.appendChild(span);
-    });
+        renderEl.appendChild(span);
+      });
+    }
   }
 
   inputEl.addEventListener('compositionstart', () => {
@@ -790,15 +1011,17 @@ function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, pauseBtn
   }
 
   function handleInput() {
+    const targetLen = mode === 3 ? fillTargets.length : original.length;
+    const targetStr = mode === 3 ? fillOriginal : original;
     let v = inputEl.value;
-    if (v.length > original.length) v = v.slice(0, original.length);
+    if (v.length > targetLen) v = v.slice(0, targetLen);
     typed = v;
     scheduleRender();
     startCountdown();
-    if (typed.length === original.length) {
+    if (typed.length === targetLen) {
       clearInterval(countdownTimer);
       boxEl.classList.remove('idle');
-      const allCorrect = typed === original;
+      const allCorrect = typed === targetStr;
       statusEl.classList.remove('warn');
       statusEl.classList.add('done');
       statusEl.textContent = allCorrect ? '✅ 完成，全部正确！' : '✅ 已输完，红色为打错的字，可以重打或继续下一步';
@@ -814,7 +1037,7 @@ function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, pauseBtn
       inputEl.value = '';
       isPaused = false;
       statusEl.classList.remove('done', 'warn');
-      statusEl.textContent = '点击此处开始输入';
+      statusEl.textContent = mode === 3 ? '点击此处开始填写空白部分' : '点击此处开始输入';
       if (pauseBtnEl) pauseBtnEl.style.display = (idleSeconds === null) ? 'none' : '';
       render();
       inputEl.focus();
@@ -824,6 +1047,7 @@ function makeRecallController(mode, renderEl, inputEl, boxEl, statusEl, pauseBtn
 }
 
 let recall1, recall2;
+let fillModeEnabled = false; // 记录填空模式是否开启
 
 function celebrate() {
   const emojis = ['🐠', '🐟', '💧', '🫧', '✨', '🎉', '🌊'];
@@ -849,8 +1073,17 @@ function initRecall(stageNum) {
         document.getElementById('status1'),
         document.getElementById('pauseBtn1'),
         (allCorrect) => {
-          // 全文跟打完成后，3秒后自动进入第二阶段（仅重点提示）
+          // 全文跟打完成后，进入第二阶段
           setTimeout(() => {
+            fillModeEnabled = document.getElementById('fillModeCheck').checked;
+            // 更新stage4标题
+            const prog = document.getElementById('stage4Progress');
+            if (fillModeEnabled) {
+              prog.textContent = '最后一步 · 填空模式 — 重点文字已显示，凭记忆补全空白部分';
+            } else {
+              prog.textContent = '最后一步 · 仅显示重点，其余内容凭记忆补全';
+            }
+            recall2 = null; // 重置，让下面重新创建
             initRecall(2);
             switchStage('stage4');
           }, 1200);
@@ -860,8 +1093,9 @@ function initRecall(stageNum) {
     recall1.start();
   } else {
     if (!recall2) {
+      const mode = fillModeEnabled ? 3 : 2;
       recall2 = makeRecallController(
-        2,
+        mode,
         document.getElementById('render2'),
         document.getElementById('hiddenInput2'),
         document.getElementById('typebox2'),
